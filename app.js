@@ -378,6 +378,10 @@ function viewSettings() {
       ${g.repo || g.token ? `<button class="btn ghost sm" type="button" data-act="ghDisconnect">Disconnect</button>` : ''}
     </form>
     ${syncStatusLine()}
+    ${g.repo && g.token ? `<div class="sec" style="font-size:17px;margin:18px 2px 8px">Other devices</div>
+      <div class="note" style="margin:0 2px 10px">Sign in anywhere with just your password. Download the connection file once, add it to the root of your TADA site repo (next to <b>index.html</b>) and commit it. It holds your repo and token, encrypted with your password.</div>
+      <button class="btn ghost sm" data-act="connFile">${ic('download')} Download connection file</button>
+      <div class="status" style="margin-top:10px">${connBlob ? '✓ A connection file is live on this site' : 'No connection file on this site yet'}</div>` : ''}
     <div class="note">Use a <b>private</b> repo, separate from the one hosting this app, and a fine-grained token limited to that repo with <b>Contents: read &amp; write</b>. The token is stored only on this device.</div>
   </div>
 
@@ -396,23 +400,66 @@ function viewSettings() {
   <label class="sw-row" style="margin-top:14px"><input type="checkbox" id="rememberChk" ${local.remember ? 'checked' : ''}> Keep me signed in on this device</label>
   ${installEvt ? `<button class="btn sm" style="margin-top:14px" data-act="install">Install TADA on this phone</button>` : ''}
   <div class="note">The password locks the screen on this device. It does not encrypt your data.</div></div>
-  <div class="note" style="text-align:center;margin:18px 0 0">TADA · v1.1</div>`;
+  <div class="note" style="text-align:center;margin:18px 0 0">TADA · v1.2</div>`;
+}
+
+/* ═════════ connection file: repo + token, encrypted with your password ═════════ */
+const CONN_FILE = 'tada-connection.json', CONN_ITER = 600000;
+let connBlob = null, forceSetup = false;
+const isSafeRef = v => /^[\w.\-\/]{1,120}$/.test(v) && !v.split('/').some(p => p === '..' || p === '.' || p === '');
+async function connKey(pw, salt, iter) {
+  if (!(window.crypto && crypto.subtle)) throw new Error('secure-context');
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(pw).normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name:'PBKDF2', salt, iterations:iter, hash:'SHA-256' }, base, { name:'AES-GCM', length:256 }, false, ['encrypt', 'decrypt']);
+}
+async function encryptConn(pw, obj) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await connKey(pw, salt, CONN_ITER);
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { app:'TADA-connection', v:1, kdf:'PBKDF2-SHA256', iter:CONN_ITER, salt:b64e(salt), iv:b64e(iv), ct:b64e(new Uint8Array(ct)) };
+}
+async function decryptConn(pw, blob) {                       // null = wrong password / damaged / unsafe contents
+  try {
+    const iter = Math.min(Math.max(+blob.iter || 0, 100000), 1500000);
+    const key = await connKey(pw, b64d(blob.salt), iter);
+    const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv:b64d(blob.iv) }, key, b64d(blob.ct));
+    const c = JSON.parse(new TextDecoder().decode(plain));
+    const ok = c && /^[\w.-]+\/[\w.-]+$/.test(c.repo) && isSafeRef(c.branch) && isSafeRef(c.path) && /^[\w-]{20,255}$/.test(c.token);
+    return ok ? { repo:c.repo, branch:c.branch, path:c.path, token:c.token } : null;
+  } catch (ex) { if (ex && ex.message === 'secure-context') throw ex; return null; }
+}
+async function loadConn(ms = 3000) {
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+    const r = await fetch(CONN_FILE, { cache:'no-store', signal:ctl.signal }); clearTimeout(t);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.app === 'TADA-connection' && j.v === 1 && ['salt', 'iv', 'ct'].every(k => typeof j[k] === 'string') ? j : null;
+  } catch { return null; }
+}
+const applyConn = c => { Object.assign(local.gh, { repo:c.repo, branch:c.branch, path:c.path, token:c.token, auto:true, lastSync:0 }); saveLocal(); };
+async function downloadConn(pw) {
+  const g = local.gh; if (!g.repo || !g.token) throw new Error('not-linked');
+  const blob = await encryptConn(pw, { repo:g.repo, branch:g.branch, path:g.path, token:g.token });
+  download(new Blob([JSON.stringify(blob, null, 1)], { type:'application/json' }), CONN_FILE);
 }
 
 /* ═════════ login ═════════ */
+const loginMode = () => jget(K.auth, null) ? 'login' : (connBlob && !forceSetup ? 'join' : 'setup');
 function showLogin() {
-  const setup = !jget(K.auth, null);
+  const mode = loginMode(), setup = mode === 'setup', join = mode === 'join';
+  const sub = setup ? 'Create a password to lock your trips' : join ? 'Enter your password to connect this device' : 'Welcome back';
   $('#root').innerHTML = `<div class="login">
-    <div class="brand"><img src="icons/icon.svg" alt=""><h1>TADA</h1><p>${setup ? 'Create a password to lock your trips' : 'Welcome back'}</p></div>
+    <div class="brand"><img src="icons/icon.svg" alt=""><h1>TADA</h1><p>${sub}</p></div>
     <form id="loginForm" autocomplete="off">
       <div class="pw-wrap"><input class="pw" id="pw" type="password" placeholder="${setup ? 'Choose a password' : 'Password'}" autocomplete="${setup ? 'new-password' : 'current-password'}" autocapitalize="off" spellcheck="false" enterkeyhint="go">
         <button type="button" class="pw-eye" data-act="eye" aria-label="Show password">${ic('eye')}</button></div>
       ${setup ? `<input class="pw second" id="pw2" type="password" placeholder="Repeat password" autocomplete="new-password">` : ''}
       <div class="login-err" id="loginErr"></div>
-      <button class="btn-login" type="submit" style="margin-top:6px">${setup ? 'Set password &amp; enter' : 'Log in'}</button>
+      <button class="btn-login" type="submit" style="margin-top:6px">${setup ? 'Set password &amp; enter' : join ? 'Connect &amp; log in' : 'Log in'}</button>
       <label class="keep"><input type="checkbox" id="keep" ${local.remember ? 'checked' : ''}> Keep me signed in</label>
     </form>
-    <div class="foot">${setup ? '' : '<button class="link" data-act="forgot">Forgot password?</button>'}</div>
+    <div class="foot">${join ? '<button class="link" data-act="freshSetup">Start fresh without sync</button>' : setup ? (connBlob ? '<button class="link" data-act="backToJoin">I already have a TADA password</button>' : '') : '<button class="link" data-act="forgot">Forgot password?</button>'}</div>
   </div>`;
   if (matchMedia('(hover:hover)').matches) $('#pw').focus();
 }
@@ -425,22 +472,31 @@ function recordFail() {
 const waitText = ms => ms >= 60e3 ? `${Math.ceil(ms / 60e3)} min` : `${Math.ceil(ms / 1000)} s`;
 async function onLogin(e) {
   e.preventDefault();
-  const pw = $('#pw').value, setup = !jget(K.auth, null), err = $('#loginErr');
+  const pw = $('#pw').value, mode = loginMode(), err = $('#loginErr'), btn = $('.btn-login'); let joined = false;
+  btn.disabled = true;
   const fail = msg => {
-    err.textContent = msg; const i = $('#pw'); i.type = 'password'; const eye = $('.pw-eye'); if (eye) eye.innerHTML = ic('eye');
+    btn.disabled = false; err.textContent = msg; const i = $('#pw'); i.type = 'password'; const eye = $('.pw-eye'); if (eye) eye.innerHTML = ic('eye');
     i.classList.remove('shake'); void i.offsetWidth; i.classList.add('shake');
   };
-  if (!setup && lockLeft() > 0) return fail(`Too many attempts. Try again in ${waitText(lockLeft())}.`);
+  if (mode !== 'setup' && lockLeft() > 0) return fail(`Too many attempts. Try again in ${waitText(lockLeft())}.`);
   try {
-    if (setup) {
+    const bad = () => { const f = recordFail(); return fail(f.until > Date.now() ? `Too many attempts. Try again in ${waitText(lockLeft())}.` : 'Wrong password'); };
+    if (mode === 'setup') {
       if (pw.length < 4) return fail('Use at least 4 characters');
       if (pw !== $('#pw2').value) return fail("Passwords don't match");
       jset(K.auth, await makeAuth(pw));
-    } else if (!(await checkPw(pw))) { const f = recordFail(); return fail(f.until > Date.now() ? `Too many attempts. Try again in ${waitText(lockLeft())}.` : 'Wrong password'); }
+    } else if (mode === 'join') {                                    // new device: the password opens the connection file
+      const c = await decryptConn(pw, connBlob); if (!c) return bad();
+      jset(K.auth, await makeAuth(pw)); applyConn(c); joined = true;
+    } else {
+      if (!(await checkPw(pw))) return bad();
+      if (!local.gh.token && connBlob) { const c = await decryptConn(pw, connBlob); if (c) { applyConn(c); joined = true; } }   // known device, not linked yet
+    }
   } catch (ex) { return fail(ex.message === 'secure-context' ? 'Open TADA over https to log in' : 'Something went wrong'); }
   try { localStorage.removeItem(K.fails); } catch {}
   local.remember = $('#keep').checked; saveLocal();
   unlock();
+  if (joined) toast('Connected to GitHub — syncing your trips…', 3500);
 }
 function unlock() {
   ui.unlocked = true;
@@ -711,6 +767,11 @@ const A = {
     <label class="lbl">New password</label><input class="field" type="password" name="n1" autocomplete="new-password"><input class="field" type="password" name="n2" placeholder="Repeat new password" style="margin-top:10px" autocomplete="new-password">
     <div class="login-err" id="pwErr" style="text-align:left"></div><div class="actions"><button class="btn" type="submit">Update password</button><button type="button" class="btn ghost" data-act="closeSheet">Cancel</button></div></form>`); },
   logout,
+  freshSetup() { forceSetup = true; showLogin(); },
+  backToJoin() { forceSetup = false; showLogin(); },
+  connFile() { openSheet(() => `<h3>Connection file</h3><p class="muted" style="margin:6px 0 0">Enter your TADA password. The file is encrypted with it, so any device can connect with the same password.</p>
+    <form data-form="conn" autocomplete="off"><label class="lbl">Password</label><input class="field" type="password" name="pw" autocomplete="current-password">
+    <div class="login-err" id="connErr" style="text-align:left"></div><div class="actions"><button class="btn" type="submit">Download tada-connection.json</button><button type="button" class="btn ghost" data-act="closeSheet">Cancel</button></div></form>`); },
   forgot() { confirmSheet('Reset TADA on this device?', 'This erases the password, trips and settings stored on this phone. If GitHub sync was on, your trips are still in the repo — reconnect it afterwards to bring them back.', 'Erase and start over', () => { Object.values(K).forEach(k => { try { localStorage.removeItem(k); } catch {} }); try { sessionStorage.clear(); } catch {} location.reload(); }); },
   eye(el) { const i = $('#pw'), show = i.type === 'password'; i.type = show ? 'text' : 'password'; const i2 = $('#pw2'); if (i2) i2.type = i.type; el.innerHTML = ic(show ? 'eyeoff' : 'eye'); },
   async install() { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; renderMain(); }
@@ -767,17 +828,24 @@ document.addEventListener('submit', async e => {
     const repo = String(fd.get('repo')).trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/, '').replace(/\/$/, '');
     if (repo && !/^[\w.-]+\/[\w.-]+$/.test(repo)) return toast('Repository should look like owner/name');
     const branch = String(fd.get('branch')).trim() || 'main', path = String(fd.get('path')).trim().replace(/^\//, '') || 'tada-data.json';
-    const safe = v => /^[\w.\-\/]{1,120}$/.test(v) && !v.split('/').some(p => p === '..' || p === '.' || p === '');
+    const safe = isSafeRef;
     if (!safe(branch)) return toast('That branch name isn’t valid');
     if (!safe(path)) return toast('File path can only use letters, numbers, . - _ and /');
     Object.assign(local.gh, { repo, branch, path, token:String(fd.get('token')).trim(), auto:!!fd.get('auto') });
     saveLocal(); renderShell(); syncNow(true);
+  } else if (kind === 'conn') {
+    const err = $('#connErr'), btn = $('button[type=submit]', f); btn.disabled = true; btn.textContent = 'Encrypting…';
+    if (!(await checkPw(fd.get('pw')))) { err.textContent = 'Wrong password'; btn.disabled = false; btn.textContent = 'Download tada-connection.json'; return; }
+    try { await downloadConn(fd.get('pw')); closeSheet(); toast('Saved — upload it next to index.html in your site repo', 4500); }
+    catch { err.textContent = 'Could not create the file'; btn.disabled = false; btn.textContent = 'Download tada-connection.json'; }
   } else if (kind === 'pw') {
     const err = $('#pwErr'), cur = fd.get('cur'), n1 = fd.get('n1'), n2 = fd.get('n2');
     if (!(await checkPw(cur))) { err.textContent = 'Current password is wrong'; return; }
     if (String(n1).length < 4) { err.textContent = 'Use at least 4 characters'; return; }
     if (n1 !== n2) { err.textContent = "New passwords don't match"; return; }
-    jset(K.auth, await makeAuth(n1)); closeSheet(); toast('Password updated');
+    jset(K.auth, await makeAuth(n1)); closeSheet();
+    if (local.gh.repo && local.gh.token) { try { await downloadConn(n1); toast('Password updated — upload the new connection file to your site repo so other devices match', 6000); } catch { toast('Password updated'); } }
+    else toast('Password updated');
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetRender) closeSheet(); });
@@ -802,6 +870,12 @@ document.addEventListener('visibilitychange', () => {
 applyTheme();
 let unlockedAlready = false;
 try { unlockedAlready = sessionStorage.getItem(SESSION_KEY) === '1'; } catch {}
-if (jget(K.auth, null) && (unlockedAlready || local.remember)) unlock(); else showLogin();
+(async () => {
+  const hasAuth = !!jget(K.auth, null);
+  if (hasAuth && (unlockedAlready || local.remember)) { unlock(); loadConn().then(b => { connBlob = b; }); return; }
+  connBlob = await loadConn();                                  // is there a connection file on this site?
+  showLogin();
+})();
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}   // ask the browser not to evict TADA's data
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

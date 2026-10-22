@@ -1,5 +1,5 @@
 // TADA service worker — bump CACHE when you want every device to refetch the shell.
-const CACHE = 'tada-v2';
+const CACHE = 'tada-v3';
 const SHELL = [
   './',
   './index.html',
@@ -31,6 +31,9 @@ self.addEventListener('fetch', e => {
 
   // Never cache the GitHub API — sync must always hit the network.
   if (url.hostname === 'api.github.com') return;
+
+  // Connection file: always fresh, never stored.
+  if (url.pathname.endsWith('/tada-connection.json')) { e.respondWith(fetch(req)); return; }
 
   // Page loads: network first (so updates land), cached copy when offline.
   if (req.mode === 'navigate') {
