@@ -284,10 +284,11 @@ function viewTrack() {
       <h3>${starting ? 'When did you leave?' : 'When did you arrive back?'}</h3>
       <div class="sub">${esc(routeShort(r.origin, r.dests))}</div>
       <div class="picker">
+        <div class="cap c1">Hrs</div><div class="cap c3">Mins</div>
         <div class="band"></div>
-        <div class="pcol"><div class="cap">Hrs</div><div class="drum" id="drumH"></div></div>
+        <div class="drum" id="drumH"></div>
         <div class="colon">:</div>
-        <div class="pcol"><div class="cap">Mins</div><div class="drum" id="drumM"></div></div>
+        <div class="drum" id="drumM"></div>
       </div>
       <div class="pick-day" id="pickDay"></div>
       <button class="link" data-act="pickNow">Set to current time</button>

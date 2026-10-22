@@ -146,19 +146,21 @@ select.field{ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.
 .pick{ text-align:center; padding-top:8px; }
 .pick h3{ font-family:var(--serif); font-size:26px; margin:6px 0 4px; }
 .pick .sub{ color:var(--muted); margin-bottom:22px; padding:0 10px; }
-.picker{ position:relative; display:flex; justify-content:center; align-items:center; gap:6px; background:var(--surface); border-radius:28px; padding:18px 18px 10px; box-shadow:0 2px 14px var(--shadow); }
-.pcol{ width:112px; text-align:center; }
-.pcol .cap{ font-size:12px; font-weight:900; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
-.drum{ position:relative; height:240px; overflow-y:auto; scroll-snap-type:y mandatory; scrollbar-width:none; overscroll-behavior:contain; touch-action:pan-y; cursor:grab; user-select:none; -webkit-user-select:none;
+/* Picker: a 2-row grid. Row 1 = labels, row 2 = wheels. The highlight band lives in row 2 and is centred
+   by the grid itself, so it always lines up with the selected number (no hand-measured offsets). */
+.picker{ display:grid; grid-template-columns:1fr auto 1fr; grid-template-rows:auto 240px; column-gap:4px; align-items:center; background:var(--surface); border-radius:28px; padding:18px 14px 12px; box-shadow:0 2px 14px var(--shadow); }
+.picker .cap{ grid-row:1; text-align:center; font-size:12px; font-weight:900; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.picker .cap.c1{ grid-column:1; } .picker .cap.c3{ grid-column:3; }
+.band{ grid-row:2; grid-column:1 / -1; align-self:center; height:48px; border-radius:16px; background:var(--surface2); pointer-events:none; opacity:.85; }
+.drum{ grid-row:2; position:relative; z-index:1; height:240px; width:100%; overflow-y:auto; scroll-snap-type:y mandatory; scrollbar-width:none; overscroll-behavior:contain; touch-action:pan-y; cursor:grab; user-select:none; -webkit-user-select:none;
   -webkit-mask-image:linear-gradient(to bottom, transparent, #000 28%, #000 72%, transparent); mask-image:linear-gradient(to bottom, transparent, #000 28%, #000 72%, transparent); }
+#drumH{ grid-column:1; } #drumM{ grid-column:3; }
 .drum::-webkit-scrollbar{ display:none; }
 .drum .pad{ height:96px; }
-.drum .it{ height:48px; display:grid; place-items:center; scroll-snap-align:center; font-family:var(--serif); font-size:30px; font-variant-numeric:tabular-nums; color:var(--muted); opacity:.35; }
+.drum .it{ height:48px; display:flex; align-items:center; justify-content:center; line-height:1; scroll-snap-align:center; font-family:var(--serif); font-size:30px; font-variant-numeric:lining-nums tabular-nums; font-feature-settings:"lnum" 1, "tnum" 1; color:var(--muted); opacity:.35; }
 .drum .it.n2{ opacity:.5; } .drum .it.n1{ opacity:.7; font-size:34px; }
-.drum .it.sel{ opacity:1; color:var(--text); font-size:46px; font-weight:600; }
-.band{ position:absolute; left:14px; right:14px; top:calc(18px + 22px + 96px); height:48px; border-radius:16px; background:var(--surface2); z-index:0; pointer-events:none; opacity:.8; }
-.pcol{ position:relative; z-index:1; }
-.colon{ font-family:var(--serif); font-size:46px; font-weight:600; margin-top:22px; position:relative; z-index:1; }
+.drum .it.sel{ opacity:1; color:var(--text); font-size:44px; font-weight:600; }
+.colon{ grid-row:2; grid-column:2; align-self:center; position:relative; z-index:1; font-family:var(--serif); font-size:44px; line-height:1; font-weight:600; padding:0 6px 6px; }
 .pick-day{ margin:16px 0 2px; font-weight:900; font-size:17px; }
 .pick-day.warn{ color:var(--accent); }
 
