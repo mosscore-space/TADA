@@ -1,0 +1,9 @@
+{
+ "app": "TADA-connection",
+ "v": 1,
+ "kdf": "PBKDF2-SHA256",
+ "iter": 600000,
+ "salt": "dXhhPRr2Fc4C3DAslIUVLg==",
+ "iv": "f/KKnAd6j3TdwAOG",
+ "ct": "uogv9C6fklbEHXfZttkw2MVQlQYVPINfhY/mTslpU79J/mrmFpur11FJCvS9BrlwNL2fAgKFTSWeWUzAX8fUPKl0VIylbLX7pSV3S0+hS0s14K6Dcmri1kG53J6Mx5+nKS8DS+vVEel4l2sgq8yKEwGbrt28oQtuXslnx4gSemIbAo3lKye7vP3Xr9WvB3Jqu/1+WvNe7AtTUWQqR1orNjwBUcb/J5BbL7cYqW+Uku8kxLNAd/+K50IclCeoKq/2S4J2"
+}
