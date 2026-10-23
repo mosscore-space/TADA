@@ -191,7 +191,7 @@ function mountPicker() {
 
 /* ═════════ trips ═════════ */
 const monthTrips = (y, m) => data.trips.filter(t => { const d = new Date(t.start); return d.getFullYear() === y && d.getMonth() === m; }).sort((a, b) => b.start - a.start);
-const routeShort = (o, ds) => `${o.replace(/^Gdh\s+/i, '')} → ${ds.map(d => d.replace(/^Gdh\s+/i, '')).join(', ')}`;
+const routeShort = (o, ds) => [o, ...ds, o].map(n => n.replace(/^Gdh\s+/i, '')).join(' → ');   // full loop: origin → stops → back to origin
 
 function tripRow(t, withDel = true) {
   const d = new Date(t.start);
@@ -301,6 +301,7 @@ function viewTrack() {
       <div class="route">
         <div class="stop from"><small>From</small><b>${esc(a.origin)}</b></div>
         ${a.dests.map(d => `<div class="stop"><small>To</small><b>${esc(d)}</b></div>`).join('')}
+        <div class="stop from"><small>Back to</small><b>${esc(a.origin)}</b></div>
       </div>
       <div class="pills">${a.reasons.map(r => `<span class="pill-r">${esc(r)}</span>`).join('')}</div>
       <div class="muted small" style="margin-top:12px">Started ${fmtTime(a.start)} · ${sameDay(a.start, Date.now()) ? 'today' : fmtDate(a.start)}</div>
