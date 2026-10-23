@@ -21,6 +21,14 @@ const fmtHMS = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${p
 const toLocalInput = ms => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
 const tripMin = t => (t.end - t.start) / 60000;
+// Allowance: a trip that reaches ALLOW_HOURS pays a flat ALLOW_RF — once, no matter how much longer it runs.
+// Judged on the minutes shown, so 3h 59m earns nothing and 4h 00m earns it.
+const ALLOW_HOURS = 4, ALLOW_RF = 250;
+const tripRf = t => Math.round(tripMin(t)) >= ALLOW_HOURS * 60 ? ALLOW_RF : 0;
+const rfNote = ms => { const m = Math.round(ms / 60000), need = ALLOW_HOURS * 60;
+  return m >= need ? { done:true, text:`✓ ${fmtRf(ALLOW_RF)} earned · nothing extra for longer` } : { done:false, text:`${fmtRf(ALLOW_RF)} unlocks at ${ALLOW_HOURS}h 00m · ${fmtDur(need - m)} to go` }; };
+const sumRf = list => list.reduce((s, t) => s + tripRf(t), 0);
+const fmtRf = n => 'Rf ' + n.toLocaleString('en-US');
 
 const ICON = {
   track:'<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/>',
@@ -201,7 +209,7 @@ function tripRow(t, withDel = true) {
       <div class="tt">${esc(t.destinations.join(', '))}</div>
       <div class="sub">From ${esc(t.origin)}</div>
       <div class="sub">${fmtTime(t.start)} → ${fmtTime(t.end)} · <b style="color:var(--text)">${fmtDur(tripMin(t))}</b></div>
-      <div class="pills">${t.reasons.map(r => `<span class="pill-r">${esc(r)}</span>`).join('')}</div>
+      <div class="pills">${tripRf(t) ? `<span class="pill-r rf">+${fmtRf(tripRf(t))}</span>` : ''}${t.reasons.map(r => `<span class="pill-r">${esc(r)}</span>`).join('')}</div>
     </div>
     ${withDel ? `<button class="del" data-act="delTrip" data-id="${esc(t.id)}" aria-label="Delete trip">${ic('trash')}</button>` : ''}
   </div>`;
@@ -304,6 +312,7 @@ function viewTrack() {
         <div class="stop from"><small>Back to</small><b>${esc(a.origin)}</b></div>
       </div>
       <div class="pills">${a.reasons.map(r => `<span class="pill-r">${esc(r)}</span>`).join('')}</div>
+      ${(() => { const n = rfNote(Date.now() - a.start); return `<div class="rf-note ${n.done ? 'done' : ''}" id="rfNote">${n.text}</div>`; })()}
       <div class="muted small" style="margin-top:12px">Started ${fmtTime(a.start)} · ${sameDay(a.start, Date.now()) ? 'today' : fmtDate(a.start)}</div>
     </div>
     <button class="btn big warn" data-act="endFlow">${ic('stop')} End trip</button>
@@ -313,7 +322,7 @@ function viewTrack() {
   const total = mt.reduce((s, t) => s + tripMin(t), 0);
   const last = [...data.trips].sort((x, y) => y.start - x.start)[0];
   return `<div class="card"><div class="muted small" style="margin-bottom:8px">${MONTHS[now.getMonth()]} so far</div>
-      <div class="stats"><div><b>${mt.length}</b><span>${mt.length === 1 ? 'trip' : 'trips'}</span></div><div><b>${fmtDur(total)}</b><span>on the road</span></div></div></div>
+      <div class="stats"><div><b>${mt.length}</b><span>${mt.length === 1 ? 'trip' : 'trips'}</span></div><div><b>${fmtDur(total)}</b><span>on the road</span></div><div><b>${fmtRf(sumRf(mt))}</b><span>earned</span></div></div></div>
     <div class="start-wrap"><button class="btn big" data-act="startFlow">${ic('play')} Start trip</button></div>
     ${last ? `<div class="sec">Last trip</div>${tripRow(last, false)}` : `<div class="empty">${ic('track', 'ic')}<div>No trips yet.<br>Tap <b>Start trip</b> when you head out.</div></div>`}`;
 }
@@ -327,7 +336,7 @@ function viewHistory() {
       <b>${MONTHS[m]} ${y}</b>
       <button class="icon-btn" data-act="monthNext" ${isCur ? 'disabled' : ''} aria-label="Next month">${ic('right')}</button>
     </div>
-    <div class="summary"><span><b>${list.length}</b> ${list.length === 1 ? 'trip' : 'trips'}</span><span><b>${fmtDur(total)}</b> total</span></div>
+    <div class="summary"><span><b>${list.length}</b> ${list.length === 1 ? 'trip' : 'trips'}</span><span><b>${fmtDur(total)}</b> total</span><span><b>${fmtRf(sumRf(list))}</b> earned</span></div>
     <div class="tools">
       <button class="btn ghost" data-act="exportX" ${list.length ? '' : 'disabled'}>${ic('download')} Export Excel</button>
       <button class="btn ghost" data-act="copyTable" ${list.length ? '' : 'disabled'}>${ic('copy')} Copy table</button>
@@ -402,7 +411,7 @@ function viewSettings() {
   <label class="sw-row" style="margin-top:14px"><input type="checkbox" id="rememberChk" ${local.remember ? 'checked' : ''}> Keep me signed in on this device</label>
   ${installEvt ? `<button class="btn sm" style="margin-top:14px" data-act="install">Install TADA on this phone</button>` : ''}
   <div class="note">The password locks the screen on this device. It does not encrypt your data.</div></div>
-  <div class="note" style="text-align:center;margin:18px 0 0">TADA · v1.2</div>`;
+  <div class="note" style="text-align:center;margin:18px 0 0">TADA · v1.4</div>`;
 }
 
 /* ═════════ connection file: repo + token, encrypted with your password ═════════ */
@@ -514,7 +523,11 @@ function logout() {
 /* ═════════ live counter ═════════ */
 function startTick() {
   clearInterval(tickTimer);
-  tickTimer = setInterval(() => { const a = local.active, el = $('#tick'); if (a && el) el.textContent = fmtHMS(Date.now() - a.start); }, 1000);
+  tickTimer = setInterval(() => {
+    const a = local.active, el = $('#tick'); if (!a) return;
+    if (el) el.textContent = fmtHMS(Date.now() - a.start);
+    const rn = $('#rfNote'); if (rn) { const n = rfNote(Date.now() - a.start); rn.textContent = n.text; rn.classList.toggle('done', n.done); }
+  }, 1000);
 }
 
 /* ═════════ theme ═════════ */

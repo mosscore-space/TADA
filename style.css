@@ -111,8 +111,9 @@ body.flow .nav{ display:none; }
 .cta{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:520px; padding:14px 16px calc(16px + env(safe-area-inset-bottom)); background:linear-gradient(to top, var(--bg) 70%, transparent); z-index:25; }
 
 /* Idle track */
-.stats{ display:grid; grid-template-columns:1fr 1.4fr; gap:12px; }
-.stats b{ display:block; font-family:var(--serif); font-size:34px; line-height:1.1; }
+.stats{ display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:end; }
+.stats > div:nth-child(2){ text-align:center; } .stats > div:last-child{ text-align:right; }
+.stats b{ display:block; font-family:var(--serif); font-size:28px; line-height:1.1; white-space:nowrap; }
 .stats span{ color:var(--muted); font-size:14px; }
 .start-wrap{ margin:6px 0 4px; }
 
@@ -171,7 +172,7 @@ select.field{ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.
 .mnav{ display:grid; grid-template-columns:48px 1fr 48px; align-items:center; margin:2px 0 8px; }
 .mnav b{ text-align:center; font-family:var(--serif); font-size:22px; font-weight:600; }
 .mnav button[disabled]{ opacity:.25; pointer-events:none; }
-.summary{ display:flex; justify-content:center; gap:22px; color:var(--muted); font-size:14px; margin-bottom:14px; }
+.summary{ display:flex; flex-wrap:wrap; justify-content:center; gap:4px 18px; color:var(--muted); font-size:14px; margin-bottom:14px; }
 .summary b{ color:var(--text); font-size:15px; }
 .tools{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
 .tools .btn{ height:50px; font-size:15px; }
@@ -228,3 +229,7 @@ select.field{ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.
 body.flow #toast{ bottom:calc(110px + env(safe-area-inset-bottom)); }
 
 @media (min-width:560px){ body{ background:color-mix(in srgb, var(--bg) 88%, #000); } #app{ background:var(--bg); box-shadow:0 0 60px rgb(0 0 0 / .12); } }
+
+.pill-r.rf{ background:var(--primary); color:var(--on-primary); border-color:transparent; }
+.rf-note{ margin-top:14px; padding:11px 14px; border-radius:14px; background:var(--surface2); font-weight:700; font-size:14px; }
+.rf-note.done{ background:var(--primary); color:var(--on-primary); }

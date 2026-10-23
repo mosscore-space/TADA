@@ -1,5 +1,5 @@
 // TADA service worker — bump CACHE when you want every device to refetch the shell.
-const CACHE = 'tada-v5';
+const CACHE = 'tada-v7';
 const SHELL = [
   './',
   './index.html',
