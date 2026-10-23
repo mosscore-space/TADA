@@ -26,7 +26,15 @@ const tripMin = t => (t.end - t.start) / 60000;
 const ALLOW_HOURS = 4, ALLOW_RF = 250;
 const tripRf = t => Math.round(tripMin(t)) >= ALLOW_HOURS * 60 ? ALLOW_RF : 0;
 const rfNote = ms => { const m = Math.round(ms / 60000), need = ALLOW_HOURS * 60;
-  return m >= need ? { done:true, text:`✓ ${fmtRf(ALLOW_RF)} earned · nothing extra for longer` } : { done:false, text:`${fmtRf(ALLOW_RF)} unlocks at ${ALLOW_HOURS}h 00m · ${fmtDur(need - m)} to go` }; };
+  return m >= need ? { done:true, p:1, text:`✓ ${fmtRf(ALLOW_RF)} earned · nothing extra for longer` }
+                   : { done:false, p:Math.max(0, Math.min(0.999, ms / (need * 60000))), text:`${fmtRf(ALLOW_RF)} unlocks at ${ALLOW_HOURS}h 00m · ${fmtDur(need - m)} to go` }; };
+// The Rf bar has two stacked copies of its text: dark on the light track, light inside the fill — so the colour flips exactly where the fill reaches.
+const rfBarHTML = n => `<div class="rf-bar ${n.done ? 'done' : ''} ${n.p < 0.012 ? 'empty' : ''}" id="rfNote" style="--p:${n.p}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(n.p * 100)}"><div class="rf-text">${n.text}</div><div class="rf-fill"><div class="rf-text" aria-hidden="true">${n.text}</div></div></div>`;
+function updateRfBar(ms) {
+  const rn = $('#rfNote'); if (!rn) return; const n = rfNote(ms);
+  rn.style.setProperty('--p', n.p); rn.classList.toggle('done', n.done); rn.classList.toggle('empty', n.p < 0.012); rn.setAttribute('aria-valuenow', Math.round(n.p * 100));
+  $$('.rf-text', rn).forEach(t => { if (t.textContent !== n.text) t.textContent = n.text; });
+}
 const sumRf = list => list.reduce((s, t) => s + tripRf(t), 0);
 const fmtRf = n => 'Rf ' + n.toLocaleString('en-US');
 
@@ -312,7 +320,7 @@ function viewTrack() {
         <div class="stop from"><small>Back to</small><b>${esc(a.origin)}</b></div>
       </div>
       <div class="pills">${a.reasons.map(r => `<span class="pill-r">${esc(r)}</span>`).join('')}</div>
-      ${(() => { const n = rfNote(Date.now() - a.start); return `<div class="rf-note ${n.done ? 'done' : ''}" id="rfNote">${n.text}</div>`; })()}
+      ${rfBarHTML(rfNote(Date.now() - a.start))}
       <div class="muted small" style="margin-top:12px">Started ${fmtTime(a.start)} · ${sameDay(a.start, Date.now()) ? 'today' : fmtDate(a.start)}</div>
     </div>
     <button class="btn big warn" data-act="endFlow">${ic('stop')} End trip</button>
@@ -411,7 +419,7 @@ function viewSettings() {
   <label class="sw-row" style="margin-top:14px"><input type="checkbox" id="rememberChk" ${local.remember ? 'checked' : ''}> Keep me signed in on this device</label>
   ${installEvt ? `<button class="btn sm" style="margin-top:14px" data-act="install">Install TADA on this phone</button>` : ''}
   <div class="note">The password locks the screen on this device. It does not encrypt your data.</div></div>
-  <div class="note" style="text-align:center;margin:18px 0 0">TADA · v1.4</div>`;
+  <div class="note" style="text-align:center;margin:18px 0 0">TADA · v1.5</div>`;
 }
 
 /* ═════════ connection file: repo + token, encrypted with your password ═════════ */
@@ -526,7 +534,7 @@ function startTick() {
   tickTimer = setInterval(() => {
     const a = local.active, el = $('#tick'); if (!a) return;
     if (el) el.textContent = fmtHMS(Date.now() - a.start);
-    const rn = $('#rfNote'); if (rn) { const n = rfNote(Date.now() - a.start); rn.textContent = n.text; rn.classList.toggle('done', n.done); }
+    updateRfBar(Date.now() - a.start);
   }, 1000);
 }
 

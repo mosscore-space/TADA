@@ -231,5 +231,16 @@ body.flow #toast{ bottom:calc(110px + env(safe-area-inset-bottom)); }
 @media (min-width:560px){ body{ background:color-mix(in srgb, var(--bg) 88%, #000); } #app{ background:var(--bg); box-shadow:0 0 60px rgb(0 0 0 / .12); } }
 
 .pill-r.rf{ background:var(--primary); color:var(--on-primary); border-color:transparent; }
-.rf-note{ margin-top:14px; padding:11px 14px; border-radius:14px; background:var(--surface2); font-weight:700; font-size:14px; }
-.rf-note.done{ background:var(--primary); color:var(--on-primary); }
+/* Rf progress bar */
+.rf-bar{ --p:0; position:relative; container-type:inline-size; height:48px; margin-top:14px; border-radius:15px; overflow:hidden; background:var(--surface2); }
+.rf-text{ position:absolute; inset:0; display:flex; align-items:center; padding:0 16px; font-weight:700; font-size:clamp(12.5px, 3.7vw, 14.5px); white-space:nowrap; color:var(--primary); }
+.rf-fill{ position:absolute; left:0; top:0; bottom:0; width:calc(var(--p) * 100%); background:var(--primary); overflow:hidden; transition:width 1s linear; }
+.rf-fill .rf-text{ right:auto; width:100cqw; color:var(--on-primary); }            /* same text, same place, but light — only visible inside the fill */
+.rf-fill::before{ content:''; position:absolute; top:0; bottom:0; right:0; width:14px; background:linear-gradient(to right, transparent, rgb(255 255 255 / .38)); animation:rfEdge 1.5s ease-in-out infinite; }   /* the live leading edge */
+.rf-fill::after{ content:''; position:absolute; top:0; bottom:0; left:0; width:55%; background:linear-gradient(105deg, transparent 20%, rgb(255 255 255 / .22) 50%, transparent 80%); transform:translateX(-120%); animation:rfSheen 2.4s ease-in-out infinite; }   /* sheen gliding left to right */
+@keyframes rfEdge{ 0%,100%{ opacity:.35; } 50%{ opacity:1; } }
+@keyframes rfSheen{ 0%{ transform:translateX(-120%); } 70%,100%{ transform:translateX(220%); } }
+.rf-bar.empty .rf-fill{ visibility:hidden; }                                                      /* no hairline before there's something to show */
+.rf-bar.done .rf-fill{ transition:none; }
+.rf-bar.done .rf-fill::before, .rf-bar.done .rf-fill::after{ display:none; animation:none; }      /* earned = finished, completely still */
+@media (prefers-reduced-motion: reduce){ .rf-fill::before, .rf-fill::after{ animation:none; } .rf-fill{ transition:none; } }
